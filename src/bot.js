@@ -24,7 +24,7 @@ const menuKeyboard = (user, chatId) => {
     [{ text: '📊 Progress Report', callback_data: 'act:report' }, { text: '🤖 AI Model', callback_data: 'act:ai' }],
     [{ text: '📋 Status', callback_data: 'act:status' }, { text: '🗑 Reset History', callback_data: 'act:reset' }],
     [{ text: user.active ? '⏸ Pause' : '▶️ Resume', callback_data: 'act:pauseresume' }, { text: `🗣 Mode: ${user.mode}`, callback_data: 'act:mode' }],
-    [{ text: '❓ Help', callback_data: 'act:help' }],
+    [{ text: '📝 Prompt', callback_data: 'act:prompt' }, { text: '❓ Help', callback_data: 'act:help' }],
   ]
   if (isAdmin(chatId)) {
     rows.push([
@@ -69,6 +69,7 @@ export const start = () => {
     { command: 'pause', description: 'Pause proactive messages' },
     { command: 'resume', description: 'Resume proactive messages' },
     { command: 'reset', description: 'Clear conversation history' },
+    { command: 'prompt', description: 'View or change your system prompt' },
     { command: 'help', description: 'Show help' },
   ])
 
@@ -113,6 +114,25 @@ export const start = () => {
     clearHistory(msg.chat.id)
     updateUser(msg.chat.id, { preset: name.trim(), systemPrompt: null, predefinedIndex: 0 })
     bot.sendMessage(msg.chat.id, `Preset → "${name.trim()}". History cleared.`)
+  })
+
+  bot.onText(/\/prompt$/, (msg) => {
+    const u = getUser(msg.chat.id)
+    if (u.customSystemPrompt) {
+      bot.sendMessage(msg.chat.id, `Your custom prompt:\n\n${u.customSystemPrompt}\n\nTo change: /prompt <new prompt>\nTo reset: /resetprompt`)
+    } else {
+      bot.sendMessage(msg.chat.id, 'No custom prompt set (using default). To set one: /prompt <your prompt>')
+    }
+  })
+
+  bot.onText(/\/prompt (.+)/s, (msg, [, prompt]) => {
+    updateUser(msg.chat.id, { customSystemPrompt: prompt.trim() })
+    bot.sendMessage(msg.chat.id, 'Custom system prompt saved.')
+  })
+
+  bot.onText(/\/resetprompt/, (msg) => {
+    updateUser(msg.chat.id, { customSystemPrompt: null })
+    bot.sendMessage(msg.chat.id, 'Custom prompt cleared, back to default.')
   })
 
   bot.onText(/\/pause/, (msg) => {
@@ -250,11 +270,22 @@ export const start = () => {
         return editToMenu(bot, chatId, msgId)
       }
 
+      case 'prompt': {
+        bot.answerCallbackQuery(query.id)
+        const u = getUser(chatId)
+        return bot.sendMessage(chatId,
+          u.customSystemPrompt
+            ? `Your custom prompt:\n\n${u.customSystemPrompt}\n\nTo change: /prompt <new prompt>\nTo reset: /resetprompt`
+            : 'No custom prompt set (using default).\nTo set one: /prompt <your prompt>')
+      }
+
       case 'help':
         bot.answerCallbackQuery(query.id)
         return bot.sendMessage(chatId,
           'Just chat to learn! Other commands:\n' +
           '/language <lang> — change language\n' +
+          '/prompt <text> — set custom system prompt\n' +
+          '/resetprompt — reset to default prompt\n' +
           '/preset <name> — switch preset\n' +
           '/menu — open actions menu')
 
@@ -325,7 +356,7 @@ const sendStatus = (bot, chatId) => {
   const u = getUser(chatId)
   const next = u.nextProactiveAt ? new Date(u.nextProactiveAt).toLocaleString() : 'not scheduled'
   bot.sendMessage(chatId,
-    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLanguage: ${u.language || 'not set'}\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
+    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLanguage: ${u.language || 'not set'}\nCustom prompt: ${u.customSystemPrompt ? 'yes' : 'no'}\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
 }
 
 const sendUsersList = (bot, chatId) => {

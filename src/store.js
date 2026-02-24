@@ -30,6 +30,7 @@ db.exec(`
 const addCol = (col, def) => { try { db.exec(`ALTER TABLE users ADD COLUMN ${col} ${def}`) } catch {} }
 addCol('provider', "TEXT DEFAULT 'auto-free'")
 addCol('ttsEnabled', 'INTEGER DEFAULT 0')
+addCol('customSystemPrompt', 'TEXT')
 
 export const getUser = (chatId) => {
   const id = String(chatId)

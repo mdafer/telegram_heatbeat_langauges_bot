@@ -8,11 +8,12 @@ const toLc = (history) =>
 
 const NO_MD = ' Do NOT use markdown, asterisks, or any markup. Plain text only.'
 const fill = (text, lang) => text.replaceAll('{language}', lang || 'the target language')
+const getSystem = (user, preset) => fill(user.customSystemPrompt || user.systemPrompt || preset.system, user.language)
 
 export const reply = async (user, text) => {
   const llm = getLlm(user.provider)
   const preset = loadPreset(user.preset)
-  const system = fill(user.systemPrompt || preset.system, user.language)
+  const system = getSystem(user, preset)
 
   addHistory(user.chatId, 'user', text)
   const history = getHistory(user.chatId)
@@ -28,7 +29,7 @@ export const reply = async (user, text) => {
 export const proactive = async (user) => {
   const llm = getLlm(user.provider)
   const preset = loadPreset(user.preset)
-  const system = fill(user.systemPrompt || preset.system, user.language)
+  const system = getSystem(user, preset)
   const instruction = fill(preset.proactivePrompt || 'Send a brief, engaging message.', user.language)
 
   const res = await llm.invoke([
