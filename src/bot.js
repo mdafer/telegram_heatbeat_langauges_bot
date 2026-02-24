@@ -94,6 +94,10 @@ export const start = () => {
   })
 
 
+  bot.onText(/\/language$/, (msg) => {
+    bot.sendMessage(msg.chat.id, 'What language would you like to learn? Just type it (e.g. "Spanish").')
+  })
+
   bot.onText(/\/language (.+)/, (msg, [, lang]) => {
     updateUser(msg.chat.id, { language: lang.trim() })
     bot.sendMessage(msg.chat.id, `Language set to ${lang.trim()}.`)
@@ -176,7 +180,7 @@ export const start = () => {
         const langText = await ai.extractLanguage(query.message.text, user.language, user.provider)
         bot.sendChatAction(chatId, 'record_voice')
         const audio = await synthesize(langText, user.language)
-        await bot.sendVoice(chatId, audio, { contentType: 'audio/mpeg' })
+        await bot.sendAudio(chatId, audio, { title: 'Listen' }, { filename: 'phrase.mp3', contentType: 'audio/mpeg' })
       } catch (err) {
         console.error('Listen error:', err.message)
         bot.sendMessage(chatId, 'Could not generate audio.')
