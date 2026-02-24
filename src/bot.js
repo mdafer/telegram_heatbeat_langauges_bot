@@ -20,11 +20,13 @@ const sendResponse = (bot, chatId, text) =>
 const menuText = (u) => `Learning: ${u.language || 'not set'} | AI: ${PROVIDERS[u.provider]?.name || u.provider}`
 
 const menuKeyboard = (user, chatId) => {
+  const ctx = user.summarizeAfter || 20
   const rows = [
-    [{ text: '📊 Progress Report', callback_data: 'act:report' }, { text: '🤖 AI Model', callback_data: 'act:ai' }],
-    [{ text: '📋 Status', callback_data: 'act:status' }, { text: '🗑 Reset History', callback_data: 'act:reset' }],
-    [{ text: user.active ? '⏸ Pause' : '▶️ Resume', callback_data: 'act:pauseresume' }, { text: `🗣 Mode: ${user.mode}`, callback_data: 'act:mode' }],
-    [{ text: '📝 Prompt', callback_data: 'act:prompt' }, { text: '❓ Help', callback_data: 'act:help' }],
+    [{ text: '📊 Report', callback_data: 'act:report' }, { text: '🤖 AI Model', callback_data: 'act:ai' }],
+    [{ text: `🌍 Lang: ${user.language || '?'}`, callback_data: 'act:language' }, { text: `📏 Context: ${ctx} msgs`, callback_data: 'act:context' }],
+    [{ text: '📝 Prompt', callback_data: 'act:prompt' }, { text: `🗣 Mode: ${user.mode}`, callback_data: 'act:mode' }],
+    [{ text: user.active ? '⏸ Pause' : '▶️ Resume', callback_data: 'act:pauseresume' }, { text: '🗑 Reset', callback_data: 'act:reset' }],
+    [{ text: '📋 Status', callback_data: 'act:status' }, { text: '❓ Help', callback_data: 'act:help' }],
   ]
   if (isAdmin(chatId)) {
     rows.push([
@@ -35,6 +37,18 @@ const menuKeyboard = (user, chatId) => {
   rows.push([{ text: '❌ Close', callback_data: 'act:close' }])
   return { reply_markup: { inline_keyboard: rows } }
 }
+
+const contextKeyboard = (current) => ({
+  reply_markup: {
+    inline_keyboard: [
+      [10, 20, 30, 50, 100].map(n => ({
+        text: `${n === current ? '● ' : ''}${n}`,
+        callback_data: `ctx:${n}`,
+      })),
+      [{ text: '◀ Back', callback_data: 'act:back' }],
+    ]
+  }
+})
 
 const providerKeyboard = (currentProvider) => ({
   reply_markup: {
@@ -62,15 +76,10 @@ export const start = () => {
 
   bot.setMyCommands([
     { command: 'menu', description: 'Open actions menu' },
-    { command: 'report', description: 'View learning progress' },
-    { command: 'ai', description: 'Choose AI model' },
     { command: 'language', description: 'Change target language' },
-    { command: 'status', description: 'Show current settings' },
-    { command: 'pause', description: 'Pause proactive messages' },
-    { command: 'resume', description: 'Resume proactive messages' },
-    { command: 'reset', description: 'Clear conversation history' },
-    { command: 'prompt', description: 'View or change your system prompt' },
-    { command: 'help', description: 'Show help' },
+    { command: 'prompt', description: 'View or set custom system prompt' },
+    { command: 'resetprompt', description: 'Reset to default prompt' },
+    { command: 'contextlimit', description: 'Set context summarization limit' },
   ])
 
   // --- Commands ---
@@ -227,6 +236,13 @@ export const start = () => {
       return editToMenu(bot, chatId, msgId)
     }
 
+    if (data.startsWith('ctx:')) {
+      const val = parseInt(data.split(':')[1])
+      updateUser(chatId, { summarizeAfter: val })
+      bot.answerCallbackQuery(query.id, { text: `Context limit: ${val} messages` })
+      return editToMenu(bot, chatId, msgId)
+    }
+
     if (!data.startsWith('act:')) return
     const action = data.slice(4)
 
@@ -249,6 +265,19 @@ export const start = () => {
         return bot.editMessageText(`Current AI: ${PROVIDERS[u.provider]?.name || u.provider}\n\nChoose a model:`, {
           chat_id: chatId, message_id: msgId, ...providerKeyboard(u.provider),
         })
+      }
+
+      case 'language':
+        bot.answerCallbackQuery(query.id)
+        return bot.sendMessage(chatId, 'Type the language you want to learn (e.g. "Spanish", "Japanese").')
+
+      case 'context': {
+        const u = getUser(chatId)
+        bot.answerCallbackQuery(query.id)
+        return bot.editMessageText(
+          `Context limit: ${u.summarizeAfter || 20} messages\nOlder messages are auto-summarized.\n\nPick a limit:`,
+          { chat_id: chatId, message_id: msgId, ...contextKeyboard(u.summarizeAfter || 20) }
+        )
       }
 
       case 'status':
@@ -293,13 +322,13 @@ export const start = () => {
       case 'help':
         bot.answerCallbackQuery(query.id)
         return bot.sendMessage(chatId,
-          'Just chat to learn! Other commands:\n' +
+          'Just chat to learn! Use /menu for all settings.\n\n' +
+          'Shortcut commands:\n' +
           '/language <lang> — change language\n' +
           '/prompt <text> — set custom system prompt\n' +
           '/resetprompt — reset to default prompt\n' +
-          '/contextlimit <n> — messages before summarizing\n' +
-          '/preset <name> — switch preset\n' +
-          '/menu — open actions menu')
+          '/contextlimit <n> — context summarization limit\n' +
+          '/preset <name> — switch preset')
 
       case 'users':
         if (!isAdmin(chatId)) return bot.answerCallbackQuery(query.id, { text: 'Admin only' })
