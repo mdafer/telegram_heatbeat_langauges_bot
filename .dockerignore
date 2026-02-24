@@ -1,0 +1,6 @@
+node_modules
+data/bot.db
+data/bot.db-wal
+data/bot.db-shm
+.env
+.git
