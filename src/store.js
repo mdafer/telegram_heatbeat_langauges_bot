@@ -33,6 +33,7 @@ addCol('ttsEnabled', 'INTEGER DEFAULT 0')
 addCol('customSystemPrompt', 'TEXT')
 addCol('summarizeAfter', 'INTEGER DEFAULT 20')
 addCol('userLanguage', "TEXT DEFAULT 'English'")
+addCol('timezone', "TEXT DEFAULT 'UTC'")
 
 export const getUser = (chatId) => {
   const id = String(chatId)

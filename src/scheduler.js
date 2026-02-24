@@ -14,7 +14,7 @@ export const startScheduler = (bot) => {
         if (msg) {
           if (user.mode === 'predefined') addHistory(user.chatId, 'assistant', msg)
           await bot.sendMessage(user.chatId, msg, LISTEN_BTN)
-          await ai.scheduleNext(user.chatId, user.provider)
+          await ai.scheduleNext(user.chatId, user.provider, user.timezone)
         }
       } catch (err) {
         console.error(`Proactive failed for ${user.chatId}:`, err.message)

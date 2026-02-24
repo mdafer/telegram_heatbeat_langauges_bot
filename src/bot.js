@@ -24,7 +24,7 @@ const menuKeyboard = (user, chatId) => {
   const rows = [
     [{ text: '📊 Report', callback_data: 'act:report' }, { text: '🤖 AI Model', callback_data: 'act:ai' }],
     [{ text: `📖 Learning: ${user.language || '?'}`, callback_data: 'act:language' }, { text: `🏠 My lang: ${user.userLanguage || 'EN'}`, callback_data: 'act:mylang' }],
-    [{ text: `📏 Context: ${ctx} msgs`, callback_data: 'act:context' }],
+    [{ text: `🕐 TZ: ${user.timezone || 'UTC'}`, callback_data: 'act:timezone' }, { text: `📏 Context: ${ctx} msgs`, callback_data: 'act:context' }],
     [{ text: '📝 Prompt', callback_data: 'act:prompt' }, { text: `🗣 Mode: ${user.mode}`, callback_data: 'act:mode' }],
     [{ text: user.active ? '⏸ Pause' : '▶️ Resume', callback_data: 'act:pauseresume' }, { text: '🗑 Reset', callback_data: 'act:reset' }],
     [{ text: '📋 Status', callback_data: 'act:status' }, { text: '❓ Help', callback_data: 'act:help' }],
@@ -137,6 +137,21 @@ export const start = () => {
     bot.sendMessage(msg.chat.id, `Preset → "${name.trim()}". History cleared.`)
   })
 
+  bot.onText(/\/timezone$/, (msg) => {
+    const u = getUser(msg.chat.id)
+    bot.sendMessage(msg.chat.id, `Your timezone: ${u.timezone || 'UTC'}\nTo change: /timezone <tz>\nExamples: America/New_York, Europe/London, Asia/Tokyo`)
+  })
+
+  bot.onText(/\/timezone (.+)/, (msg, [, tz]) => {
+    try {
+      new Date().toLocaleString('en-US', { timeZone: tz.trim() })
+      updateUser(msg.chat.id, { timezone: tz.trim() })
+      bot.sendMessage(msg.chat.id, `Timezone set to ${tz.trim()}.`)
+    } catch {
+      bot.sendMessage(msg.chat.id, 'Invalid timezone. Use IANA format, e.g. America/New_York, Europe/Berlin, Asia/Tokyo.')
+    }
+  })
+
   bot.onText(/\/prompt$/, (msg) => {
     const u = getUser(msg.chat.id)
     if (u.customSystemPrompt) {
@@ -175,7 +190,7 @@ export const start = () => {
   bot.onText(/\/resume/, async (msg) => {
     const u = getUser(msg.chat.id)
     updateUser(msg.chat.id, { active: 1 })
-    await ai.scheduleNext(msg.chat.id, u.provider)
+    await ai.scheduleNext(msg.chat.id, u.provider, u.timezone)
     bot.sendMessage(msg.chat.id, 'Proactive messages resumed.')
   })
 
@@ -287,6 +302,13 @@ export const start = () => {
         bot.answerCallbackQuery(query.id)
         return bot.sendMessage(chatId, 'Type your native language (e.g. "English", "Russian"). Use /mylanguage <lang>')
 
+      case 'timezone': {
+        bot.answerCallbackQuery(query.id)
+        const u = getUser(chatId)
+        return bot.sendMessage(chatId,
+          `Your timezone: ${u.timezone || 'UTC'}\nTo change: /timezone <tz>\n\nExamples:\nAmerica/New_York\nEurope/London\nEurope/Berlin\nAsia/Tokyo\nAsia/Shanghai\nAustralia/Sydney`)
+      }
+
       case 'context': {
         const u = getUser(chatId)
         bot.answerCallbackQuery(query.id)
@@ -307,7 +329,7 @@ export const start = () => {
           bot.answerCallbackQuery(query.id, { text: 'Paused' })
         } else {
           updateUser(chatId, { active: 1 })
-          ai.scheduleNext(chatId, u.provider)
+          ai.scheduleNext(chatId, u.provider, u.timezone)
           bot.answerCallbackQuery(query.id, { text: 'Resumed' })
         }
         return editToMenu(bot, chatId, msgId)
@@ -385,7 +407,7 @@ export const start = () => {
       }
 
       if (response) await sendResponse(bot, msg.chat.id, response)
-      await ai.scheduleNext(msg.chat.id, user.provider)
+      await ai.scheduleNext(msg.chat.id, user.provider, user.timezone)
     } catch (err) {
       console.error('Reply error:', err.message)
       bot.sendMessage(msg.chat.id, 'Something went wrong, try again.')
@@ -412,9 +434,12 @@ const handleReport = async (bot, chatId) => {
 
 const sendStatus = (bot, chatId) => {
   const u = getUser(chatId)
-  const next = u.nextProactiveAt ? new Date(u.nextProactiveAt).toLocaleString() : 'not scheduled'
+  const tz = u.timezone || 'UTC'
+  const next = u.nextProactiveAt
+    ? new Date(u.nextProactiveAt).toLocaleString('en-US', { timeZone: tz }) + ` (${tz})`
+    : 'not scheduled'
   bot.sendMessage(chatId,
-    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLearning: ${u.language || 'not set'}\nMy language: ${u.userLanguage || 'English'}\nCustom prompt: ${u.customSystemPrompt ? 'yes' : 'no'}\nContext limit: ${u.summarizeAfter || 20} msgs\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
+    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLearning: ${u.language || 'not set'}\nMy language: ${u.userLanguage || 'English'}\nTimezone: ${tz}\nCustom prompt: ${u.customSystemPrompt ? 'yes' : 'no'}\nContext limit: ${u.summarizeAfter || 20} msgs\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
 }
 
 const sendUsersList = (bot, chatId) => {

@@ -81,18 +81,22 @@ export const extractForListening = async (text, language, userLanguage, provider
   return res.content
 }
 
-export const scheduleNext = async (chatId, provider) => {
+export const scheduleNext = async (chatId, provider, timezone) => {
   try {
+    const tz = timezone || 'UTC'
+    const localNow = new Date().toLocaleString('en-US', { timeZone: tz })
     const history = getHistory(chatId, 10)
     const res = await getLlm(provider).invoke([
       new SystemMessage(
-        `Current date/time: ${new Date().toISOString()}\n\n` +
+        `Current date/time (UTC): ${new Date().toISOString()}\n` +
+        `User's timezone: ${tz} (local time: ${localNow})\n\n` +
         'Based on this conversation, decide when to next proactively message the user. ' +
         'Pay close attention to scheduling cues from the user (e.g. "enough for today", ' +
         '"let\'s continue next week", "see you over the weekend", "talk tomorrow"). ' +
         'If the user indicated a specific time, respect it. Otherwise pick a reasonable ' +
-        'time based on engagement and learning pace.\n' +
-        'Return ONLY an ISO 8601 datetime string (e.g. 2026-02-24T09:00:00Z).'
+        'time based on engagement and learning pace. Only schedule during waking hours ' +
+        'in the user\'s timezone (roughly 8:00-22:00 local time).\n' +
+        'Return ONLY an ISO 8601 datetime string (e.g. 2026-02-24T09:00:00Z). Always return UTC.'
       ),
       new HumanMessage(history.map(m => `${m.role}: ${m.content}`).join('\n') || 'No conversation yet.'),
     ])
