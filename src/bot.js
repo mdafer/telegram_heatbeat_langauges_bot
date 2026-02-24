@@ -17,13 +17,14 @@ const LISTEN_BTN = { reply_markup: { inline_keyboard: [[{ text: '🔊 Listen', c
 const sendResponse = (bot, chatId, text) =>
   bot.sendMessage(chatId, text, LISTEN_BTN)
 
-const menuText = (u) => `Learning: ${u.language || 'not set'} | AI: ${PROVIDERS[u.provider]?.name || u.provider}`
+const menuText = (u) => `Learning: ${u.language || 'not set'} | My lang: ${u.userLanguage || 'English'} | AI: ${PROVIDERS[u.provider]?.name || u.provider}`
 
 const menuKeyboard = (user, chatId) => {
   const ctx = user.summarizeAfter || 20
   const rows = [
     [{ text: '📊 Report', callback_data: 'act:report' }, { text: '🤖 AI Model', callback_data: 'act:ai' }],
-    [{ text: `🌍 Lang: ${user.language || '?'}`, callback_data: 'act:language' }, { text: `📏 Context: ${ctx} msgs`, callback_data: 'act:context' }],
+    [{ text: `📖 Learning: ${user.language || '?'}`, callback_data: 'act:language' }, { text: `🏠 My lang: ${user.userLanguage || 'EN'}`, callback_data: 'act:mylang' }],
+    [{ text: `📏 Context: ${ctx} msgs`, callback_data: 'act:context' }],
     [{ text: '📝 Prompt', callback_data: 'act:prompt' }, { text: `🗣 Mode: ${user.mode}`, callback_data: 'act:mode' }],
     [{ text: user.active ? '⏸ Pause' : '▶️ Resume', callback_data: 'act:pauseresume' }, { text: '🗑 Reset', callback_data: 'act:reset' }],
     [{ text: '📋 Status', callback_data: 'act:status' }, { text: '❓ Help', callback_data: 'act:help' }],
@@ -76,7 +77,8 @@ export const start = () => {
 
   bot.setMyCommands([
     { command: 'menu', description: 'Open actions menu' },
-    { command: 'language', description: 'Change target language' },
+    { command: 'language', description: 'Change learning language' },
+    { command: 'mylanguage', description: 'Change your native language' },
     { command: 'prompt', description: 'View or set custom system prompt' },
     { command: 'resetprompt', description: 'Reset to default prompt' },
     { command: 'contextlimit', description: 'Set context summarization limit' },
@@ -105,12 +107,22 @@ export const start = () => {
 
 
   bot.onText(/\/language$/, (msg) => {
-    bot.sendMessage(msg.chat.id, 'What language would you like to learn? Just type it (e.g. "Spanish").')
+    bot.sendMessage(msg.chat.id, 'What language would you like to learn? (e.g. "Spanish")')
   })
 
   bot.onText(/\/language (.+)/, (msg, [, lang]) => {
     updateUser(msg.chat.id, { language: lang.trim() })
-    bot.sendMessage(msg.chat.id, `Language set to ${lang.trim()}.`)
+    bot.sendMessage(msg.chat.id, `Learning language set to ${lang.trim()}.`)
+  })
+
+  bot.onText(/\/mylanguage$/, (msg) => {
+    const u = getUser(msg.chat.id)
+    bot.sendMessage(msg.chat.id, `Your language: ${u.userLanguage || 'English'}\nTo change: /mylanguage <language>`)
+  })
+
+  bot.onText(/\/mylanguage (.+)/, (msg, [, lang]) => {
+    updateUser(msg.chat.id, { userLanguage: lang.trim() })
+    bot.sendMessage(msg.chat.id, `Your language set to ${lang.trim()}.`)
   })
 
   bot.onText(/\/mode (.+)/, (msg, [, mode]) => {
@@ -183,7 +195,7 @@ export const start = () => {
   bot.onText(/\/userreport (.+)/, async (msg, [, targetId]) => {
     if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, 'Admin only.')
     const target = getUser(targetId.trim())
-    if (!target.language) return bot.sendMessage(msg.chat.id, 'User has no language set.')
+    if (!target.language) return bot.sendMessage(msg.chat.id, 'User has no learning language set.')
     bot.sendMessage(msg.chat.id, `Generating report for ${targetId.trim()}...`)
     try {
       bot.sendMessage(msg.chat.id, await ai.generateReport(target))
@@ -217,7 +229,7 @@ export const start = () => {
       bot.answerCallbackQuery(query.id, { text: 'Generating audio...' })
       try {
         bot.sendChatAction(chatId, 'record_voice')
-        const langText = await ai.extractLanguage(query.message.text, user.language, user.provider)
+        const langText = await ai.extractForListening(query.message.text, user.language, user.userLanguage, user.provider)
         bot.sendChatAction(chatId, 'record_voice')
         const audio = await synthesize(langText, user.language)
         await bot.sendVoice(chatId, audio, {}, { filename: 'voice.ogg', contentType: 'audio/ogg' })
@@ -270,6 +282,10 @@ export const start = () => {
       case 'language':
         bot.answerCallbackQuery(query.id)
         return bot.sendMessage(chatId, 'Type the language you want to learn (e.g. "Spanish", "Japanese").')
+
+      case 'mylang':
+        bot.answerCallbackQuery(query.id)
+        return bot.sendMessage(chatId, 'Type your native language (e.g. "English", "Russian"). Use /mylanguage <lang>')
 
       case 'context': {
         const u = getUser(chatId)
@@ -324,7 +340,8 @@ export const start = () => {
         return bot.sendMessage(chatId,
           'Just chat to learn! Use /menu for all settings.\n\n' +
           'Shortcut commands:\n' +
-          '/language <lang> — change language\n' +
+          '/language <lang> — learning language\n' +
+          '/mylanguage <lang> — your native language\n' +
           '/prompt <text> — set custom system prompt\n' +
           '/resetprompt — reset to default prompt\n' +
           '/contextlimit <n> — context summarization limit\n' +
@@ -397,7 +414,7 @@ const sendStatus = (bot, chatId) => {
   const u = getUser(chatId)
   const next = u.nextProactiveAt ? new Date(u.nextProactiveAt).toLocaleString() : 'not scheduled'
   bot.sendMessage(chatId,
-    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLanguage: ${u.language || 'not set'}\nCustom prompt: ${u.customSystemPrompt ? 'yes' : 'no'}\nContext limit: ${u.summarizeAfter || 20} msgs\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
+    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLearning: ${u.language || 'not set'}\nMy language: ${u.userLanguage || 'English'}\nCustom prompt: ${u.customSystemPrompt ? 'yes' : 'no'}\nContext limit: ${u.summarizeAfter || 20} msgs\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
 }
 
 const sendUsersList = (bot, chatId) => {

@@ -32,6 +32,7 @@ addCol('provider', "TEXT DEFAULT 'auto-free'")
 addCol('ttsEnabled', 'INTEGER DEFAULT 0')
 addCol('customSystemPrompt', 'TEXT')
 addCol('summarizeAfter', 'INTEGER DEFAULT 20')
+addCol('userLanguage', "TEXT DEFAULT 'English'")
 
 export const getUser = (chatId) => {
   const id = String(chatId)

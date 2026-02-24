@@ -7,8 +7,10 @@ const toLc = (history) =>
   history.map(m => m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content))
 
 const NO_MD = ' Do NOT use markdown, asterisks, or any markup. Plain text only.'
-const fill = (text, lang) => text.replaceAll('{language}', lang || 'the target language')
-const getSystem = (user, preset) => fill(user.customSystemPrompt || user.systemPrompt || preset.system, user.language)
+const fill = (text, user) => text
+  .replaceAll('{language}', user.language || 'the target language')
+  .replaceAll('{userLanguage}', user.userLanguage || 'English')
+const getSystem = (user, preset) => fill(user.customSystemPrompt || user.systemPrompt || preset.system, user)
 
 export const reply = async (user, text) => {
   const llm = getLlm(user.provider)
@@ -33,7 +35,7 @@ export const proactive = async (user) => {
   const llm = getLlm(user.provider)
   const preset = loadPreset(user.preset)
   const system = getSystem(user, preset)
-  const instruction = fill(preset.proactivePrompt || 'Send a brief, engaging message.', user.language)
+  const instruction = fill(preset.proactivePrompt || 'Send a brief, engaging message.', user)
 
   const res = await llm.invoke([
     new SystemMessage(`${system}\n\n${instruction}${NO_MD}`),
@@ -63,12 +65,16 @@ export const generateReport = async (user) => {
   return res.content
 }
 
-export const extractLanguage = async (text, language, provider) => {
+export const extractForListening = async (text, language, userLanguage, provider) => {
+  const native = userLanguage || 'English'
   const res = await getLlm(provider).invoke([
     new SystemMessage(
-      `Extract ONLY the ${language} words, phrases, and sentences from the message below. ` +
-      `Remove all English explanations, translations, and commentary. ` +
-      `Return just the ${language} text, nothing else.`
+      `Extract the ${language} words, phrases, and sentences from the message below. ` +
+      `For each one, output the ${language} text followed by " ... " and then its ${native} translation. ` +
+      `One pair per line. Example format:\n` +
+      `Bonjour ... Hello\n` +
+      `Comment allez-vous? ... How are you?\n\n` +
+      `Return only these pairs, nothing else.`
     ),
     new HumanMessage(text),
   ])
