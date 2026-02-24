@@ -1,0 +1,20 @@
+{
+  "name": "telegram-heartbeat",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.1.27",
+    "@langchain/google-genai": "^2.1.20",
+    "@langchain/groq": "^1.1.2",
+    "@langchain/openai": "^1.2.9",
+    "better-sqlite3": "^12.6.2",
+    "dotenv": "^16.4.7",
+    "msedge-tts": "^2.0.4",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
