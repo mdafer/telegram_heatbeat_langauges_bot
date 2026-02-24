@@ -70,10 +70,10 @@ export const extractForListening = async (text, language, userLanguage, provider
   const res = await getLlm(provider).invoke([
     new SystemMessage(
       `Extract the ${language} words, phrases, and sentences from the message below. ` +
-      `For each one, output the ${language} text followed by " ... " and then its ${native} translation. ` +
+      `For each one, output the ${native} translation first, followed by " ... ", then the ${language} text. ` +
       `One pair per line. Example format:\n` +
-      `Bonjour ... Hello\n` +
-      `Comment allez-vous? ... How are you?\n\n` +
+      `Hello ... Bonjour\n` +
+      `How are you? ... Comment allez-vous?\n\n` +
       `Return only these pairs, nothing else.`
     ),
     new HumanMessage(text),
