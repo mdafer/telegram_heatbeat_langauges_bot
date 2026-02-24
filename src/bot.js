@@ -180,7 +180,7 @@ export const start = () => {
         const langText = await ai.extractLanguage(query.message.text, user.language, user.provider)
         bot.sendChatAction(chatId, 'record_voice')
         const audio = await synthesize(langText, user.language)
-        await bot.sendAudio(chatId, audio, { title: 'Listen' }, { filename: 'phrase.mp3', contentType: 'audio/mpeg' })
+        await bot.sendVoice(chatId, audio, {}, { filename: 'voice.ogg', contentType: 'audio/ogg' })
       } catch (err) {
         console.error('Listen error:', err.message)
         bot.sendMessage(chatId, 'Could not generate audio.')
