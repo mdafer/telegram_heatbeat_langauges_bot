@@ -130,6 +130,17 @@ export const start = () => {
     bot.sendMessage(msg.chat.id, 'Custom system prompt saved.')
   })
 
+  bot.onText(/\/contextlimit$/, (msg) => {
+    const u = getUser(msg.chat.id)
+    bot.sendMessage(msg.chat.id, `Context limit: ${u.summarizeAfter || 20} messages.\nOlder messages get summarized automatically.\nTo change: /contextlimit <number>`)
+  })
+
+  bot.onText(/\/contextlimit (\d+)/, (msg, [, n]) => {
+    const val = Math.max(6, Math.min(100, parseInt(n)))
+    updateUser(msg.chat.id, { summarizeAfter: val })
+    bot.sendMessage(msg.chat.id, `Context limit set to ${val} messages. History will be summarized when it exceeds this.`)
+  })
+
   bot.onText(/\/resetprompt/, (msg) => {
     updateUser(msg.chat.id, { customSystemPrompt: null })
     bot.sendMessage(msg.chat.id, 'Custom prompt cleared, back to default.')
@@ -286,6 +297,7 @@ export const start = () => {
           '/language <lang> — change language\n' +
           '/prompt <text> — set custom system prompt\n' +
           '/resetprompt — reset to default prompt\n' +
+          '/contextlimit <n> — messages before summarizing\n' +
           '/preset <name> — switch preset\n' +
           '/menu — open actions menu')
 
@@ -356,7 +368,7 @@ const sendStatus = (bot, chatId) => {
   const u = getUser(chatId)
   const next = u.nextProactiveAt ? new Date(u.nextProactiveAt).toLocaleString() : 'not scheduled'
   bot.sendMessage(chatId,
-    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLanguage: ${u.language || 'not set'}\nCustom prompt: ${u.customSystemPrompt ? 'yes' : 'no'}\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
+    `Mode: ${u.mode}\nAI: ${PROVIDERS[u.provider]?.name || u.provider}\nPreset: ${u.preset}\nLanguage: ${u.language || 'not set'}\nCustom prompt: ${u.customSystemPrompt ? 'yes' : 'no'}\nContext limit: ${u.summarizeAfter || 20} msgs\nActive: ${u.active ? 'yes' : 'no'}\nNext message: ${next}`)
 }
 
 const sendUsersList = (bot, chatId) => {

@@ -1,7 +1,7 @@
 import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages'
 import { getLlm } from '../llm.js'
 import { loadPreset } from '../presets.js'
-import { getHistory, addHistory, updateUser } from '../store.js'
+import { getHistory, addHistory, updateUser, getHistoryCount, compactHistory } from '../store.js'
 
 const toLc = (history) =>
   history.map(m => m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content))
@@ -22,6 +22,9 @@ export const reply = async (user, text) => {
   addHistory(user.chatId, 'assistant', res.content)
 
   if (history.length > 0 && history.length % 20 === 0) await evolvePrompt(user, preset)
+
+  const threshold = user.summarizeAfter || 20
+  if (getHistoryCount(user.chatId) >= threshold) await summarizeContext(user)
 
   return res.content
 }
@@ -93,6 +96,21 @@ export const scheduleNext = async (chatId, provider) => {
   } catch {
     updateUser(chatId, { nextProactiveAt: Date.now() + 180 * 60_000 })
   }
+}
+
+const summarizeContext = async (user) => {
+  const history = getHistory(user.chatId)
+  if (history.length < 6) return
+  const older = history.slice(0, -4)
+  const res = await getLlm(user.provider).invoke([
+    new SystemMessage(
+      'Summarize this language-learning conversation concisely. Preserve: key vocabulary and phrases taught, ' +
+      'grammar points covered, user\'s proficiency level, and any preferences or struggles noted. ' +
+      'This summary replaces older messages to keep context manageable.'
+    ),
+    new HumanMessage(older.map(m => `${m.role}: ${m.content}`).join('\n')),
+  ])
+  compactHistory(user.chatId, res.content)
 }
 
 const evolvePrompt = async (user, preset) => {

@@ -31,6 +31,7 @@ const addCol = (col, def) => { try { db.exec(`ALTER TABLE users ADD COLUMN ${col
 addCol('provider', "TEXT DEFAULT 'auto-free'")
 addCol('ttsEnabled', 'INTEGER DEFAULT 0')
 addCol('customSystemPrompt', 'TEXT')
+addCol('summarizeAfter', 'INTEGER DEFAULT 20')
 
 export const getUser = (chatId) => {
   const id = String(chatId)
@@ -53,6 +54,19 @@ export const addHistory = (chatId, role, content) =>
 
 export const clearHistory = (chatId) =>
   db.prepare('DELETE FROM history WHERE chatId = ?').run(String(chatId))
+
+export const getHistoryCount = (chatId) =>
+  db.prepare('SELECT COUNT(*) as count FROM history WHERE chatId = ?').get(String(chatId)).count
+
+export const compactHistory = (chatId, summary, keepLast = 4) => {
+  const id = String(chatId)
+  const kept = db.prepare('SELECT role, content FROM history WHERE chatId = ? ORDER BY id DESC LIMIT ?')
+    .all(id, keepLast).reverse()
+  db.prepare('DELETE FROM history WHERE chatId = ?').run(id)
+  const ins = db.prepare('INSERT INTO history (chatId, role, content) VALUES (?, ?, ?)')
+  ins.run(id, 'assistant', `[Previous conversation summary]\n${summary}`)
+  for (const m of kept) ins.run(id, m.role, m.content)
+}
 
 export const getDueUsers = () =>
   db.prepare('SELECT * FROM users WHERE active = 1 AND nextProactiveAt IS NOT NULL AND nextProactiveAt <= ?').all(Date.now())
